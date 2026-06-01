@@ -1,3 +1,4 @@
+
 const startBtn = document.getElementById('start-btn');
 const statusText = document.getElementById('status');
 const userText = document.getElementById('user-text');
@@ -6,6 +7,7 @@ const apiKeyInput = document.getElementById('api-key');
 const saveKeyBtn = document.getElementById('save-key');
 
 let apiKey = localStorage.getItem('jarvis_gemini_key') || '';
+let isJarvisSpeaking = false; // FLAG: Loop se bachne ke liye
 
 if (apiKey) {
     apiKeyInput.value = '••••••••••••••••••••';
@@ -36,6 +38,7 @@ if (!SpeechRecognition) {
             alert('Please input your Gemini API Key to wake up JARVIS.');
             return;
         }
+        if (isJarvisSpeaking) return; // Agar Jarvis bol raha hai toh mic start nahi hoga
         recognition.start();
     });
 
@@ -46,6 +49,10 @@ if (!SpeechRecognition) {
 
     recognition.onresult = async (event) => {
         startBtn.classList.remove('listening');
+        
+        // Loop Guard: Agar Jarvis khud bol raha hai toh aawaz ko ignore karein
+        if (isJarvisSpeaking) return; 
+
         const command = event.results[0][0].transcript;
         userText.innerText = command;
         statusText.innerText = 'Status: Processing Matrix...';
@@ -65,10 +72,10 @@ if (!SpeechRecognition) {
     };
 }
 
-// REST Call to Gemini
+// REST Call to Gemini (Updated to stable v1beta)
 async function askAI(prompt) {
     try {
-        const url = `https://generativelanguage.googleapis.com/v1/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`;
         const response = await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -81,7 +88,6 @@ async function askAI(prompt) {
         
         const data = await response.json();
         
-        // Agar Google koi error bhejta hai, toh yeh use pakad lega
         if (data.error) {
             console.error("Gemini Error:", data.error.message);
             return `Sir, API Error: ${data.error.message}`;
@@ -93,12 +99,14 @@ async function askAI(prompt) {
         return "Apologies Sir, I am having trouble reaching my central databanks.";
     }
 }
-// Text to Speech
+
+// Text to Speech (With Safety Lock)
 function speak(text) {
     statusText.innerText = 'Status: Responding...';
+    isJarvisSpeaking = true; // Lock laga diya taaki mic baki aawaz na sune
+    
     const utterance = new SpeechSynthesisUtterance(text);
     
-    // Attempt to match an English (UK) voice for standard JARVIS persona
     const voices = window.speechSynthesis.getVoices();
     const jarvisVoice = voices.find(v => v.lang.includes('en-GB') && v.name.toLowerCase().includes('male')) ||
                         voices.find(v => v.lang.includes('en-GB')) || 
@@ -110,10 +118,13 @@ function speak(text) {
 
     utterance.onend = () => {
         statusText.innerText = 'Status: Systems Operational';
+        // 1 second ka extra pause taaki speaker ki goonj shant ho jaye, fir lock kholein
+        setTimeout(() => {
+            isJarvisSpeaking = false; 
+        }, 1000);
     };
     
     window.speechSynthesis.speak(utterance);
 }
 
-// Trigger voice pre-loading for Chrome compatibility
 window.speechSynthesis.onvoiceschanged = () => { window.speechSynthesis.getVoices(); };
