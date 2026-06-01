@@ -78,14 +78,21 @@ async function askAI(prompt) {
                 }]
             })
         });
+        
         const data = await response.json();
+        
+        // Agar Google koi error bhejta hai, toh yeh use pakad lega
+        if (data.error) {
+            console.error("Gemini Error:", data.error.message);
+            return `Sir, API Error: ${data.error.message}`;
+        }
+        
         return data.candidates[0].content.parts[0].text;
     } catch (error) {
-        console.error(error);
+        console.error("Network Error:", error);
         return "Apologies Sir, I am having trouble reaching my central databanks.";
     }
 }
-
 // Text to Speech
 function speak(text) {
     statusText.innerText = 'Status: Responding...';
